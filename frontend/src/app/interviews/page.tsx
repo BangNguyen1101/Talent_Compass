@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { ROUND_TYPES } from "@/lib/roles";
 import type { Interview, Job } from "@/lib/types";
 import { ErrorBox, RequireAuth } from "@/components/ui";
 
@@ -40,7 +41,8 @@ function InterviewList() {
                 <p className="text-xs text-slate-500">{new Date(s.created_at).toLocaleString("vi-VN")}</p>
               </div>
               <span className="text-sm text-slate-600">
-                {s.status === "completed" ? "Đã hoàn thành" : `${answered}/${s.turns.length} câu`}
+                {ROUND_TYPES[s.round_type] ?? s.round_type} ·{" "}
+                {s.status === "completed" ? `Hoàn thành${s.average_score != null ? ` · ${s.average_score}/5` : ""}` : `${answered}/${s.turns.length} câu`}
               </span>
             </Link>
           );

@@ -13,6 +13,7 @@ import anthropic
 from pydantic import BaseModel
 
 from app.config import get_settings
+from app.core import usage
 
 log = logging.getLogger("talentcompass.llm")
 
@@ -43,6 +44,7 @@ def model_name(tier: Tier) -> str:
 
 def generate(
     *,
+    feature: str,
     tier: Tier,
     system: str,
     prompt: str,
@@ -50,9 +52,16 @@ def generate(
     mock: Callable[[], T],
     max_tokens: int = 16000,
 ) -> T:
-    """Gọi Claude và trả về đối tượng Pydantic đã được kiểm tra định dạng."""
+    """Gọi Claude và trả về đối tượng Pydantic đã được kiểm tra định dạng.
+    feature: tên tác vụ, dùng để thống kê chi phí theo chức năng."""
     settings = get_settings()
+    try:
+        usage.check_quota()
+    except usage.QuotaExceeded as e:
+        raise LLMError(str(e)) from e
+
     if settings.use_mock_llm:
+        usage.record(feature, "mock", 0, 0)
         return mock()
 
     client = _get_client()
@@ -89,12 +98,14 @@ def generate(
         raise LLMError("Không kết nối được tới dịch vụ AI") from e
 
     log.info(
-        "llm call model=%s in=%s out=%s stop=%s",
+        "llm call feature=%s model=%s in=%s out=%s stop=%s",
+        feature,
         response.model,
         response.usage.input_tokens,
         response.usage.output_tokens,
         response.stop_reason,
     )
+    usage.record(feature, response.model, response.usage.input_tokens, response.usage.output_tokens)
     if response.stop_reason == "refusal":
         raise LLMError("AI từ chối xử lý nội dung này. Hãy kiểm tra lại dữ liệu đầu vào.")
     if response.stop_reason == "max_tokens" or response.parsed_output is None:

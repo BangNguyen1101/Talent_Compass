@@ -9,6 +9,7 @@ interface AuthState {
   loading: boolean;
   signIn: (token: string, user: User) => void;
   signOut: () => void;
+  setUser: (u: User) => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -38,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading, signIn, signOut }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, signIn, signOut, setUser }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

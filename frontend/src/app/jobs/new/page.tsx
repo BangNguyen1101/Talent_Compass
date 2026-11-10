@@ -3,23 +3,27 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { post } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import type { Job, JobInput } from "@/lib/types";
-import { JobEditor } from "@/components/JobEditor";
+import { JobEditor, LEVELS } from "@/components/JobEditor";
 import { AiNotice, ErrorBox, RequireAuth } from "@/components/ui";
 
 function NewJob() {
   const router = useRouter();
-  const [form, setForm] = useState({ title: "", level: "junior", context: "" });
+  const { user } = useAuth();
+  const [form, setForm] = useState({ title: "", level: "junior", department: user?.department ?? "", job_family: "", context: "" });
   const [draft, setDraft] = useState<JobInput | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isCompany = ["hr", "manager", "hiring_lead"].includes(user?.role ?? "");
 
   async function generate(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      setDraft(await post<JobInput>("/jobs/generate", form));
+      const d = await post<JobInput>("/jobs/generate", form);
+      setDraft({ ...d, headcount: d.headcount || 1 });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -52,34 +56,35 @@ function NewJob() {
             <div>
               <label className="label">Cấp độ</label>
               <select className="input" value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
-                <option value="intern">Thực tập</option>
-                <option value="fresher">Fresher</option>
-                <option value="junior">Junior</option>
-                <option value="middle">Middle</option>
-                <option value="senior">Senior</option>
+                {LEVELS.map((l) => <option key={l}>{l}</option>)}
               </select>
             </div>
+            {isCompany && (
+              <>
+                <div>
+                  <label className="label">Phòng ban</label>
+                  <input className="input" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="label">Nhóm vị trí (AI dùng JD cùng nhóm đã ban hành làm chuẩn)</label>
+                  <input className="input" placeholder="VD: Backend" value={form.job_family} onChange={(e) => setForm({ ...form, job_family: e.target.value })} />
+                </div>
+              </>
+            )}
           </div>
           <div>
-            <label className="label">Thông tin thêm hoặc dán JD gốc (không bắt buộc)</label>
-            <textarea
-              className="input min-h-40"
-              placeholder="Dán nguyên văn JD từ tin tuyển dụng, hoặc mô tả ngắn: công nghệ, quy mô nhóm, sản phẩm..."
-              value={form.context}
-              onChange={(e) => setForm({ ...form, context: e.target.value })}
-            />
+            <label className="label">Mô tả sơ bộ hoặc dán JD gốc</label>
+            <textarea className="input min-h-40" placeholder="Công nghệ, quy mô nhóm, sản phẩm, trách nhiệm chính..." value={form.context} onChange={(e) => setForm({ ...form, context: e.target.value })} />
           </div>
           <ErrorBox message={error} />
-          <div className="flex items-center gap-4">
-            <button className="btn" disabled={busy}>
-              {busy ? "AI đang soạn..." : "Soạn bằng AI"}
-            </button>
-            <AiNotice />
+          <div className="flex flex-wrap items-center gap-4">
+            <button className="btn" disabled={busy}>{busy ? "AI đang soạn..." : "Soạn bằng AI"}</button>
+            <AiNotice extra={isCompany ? "AI dùng phong cách thương hiệu và từ điển năng lực của công ty." : undefined} />
           </div>
         </form>
       ) : (
         <>
-          <p className="text-sm text-slate-600">Bản nháp do AI soạn. Hãy kiểm tra và chỉnh sửa trước khi lưu.</p>
+          <p className="text-sm text-slate-600">Bản nháp do AI soạn. Hãy biên tập và chạy kiểm tra trước khi lưu.</p>
           <ErrorBox message={error} />
           <JobEditor initial={draft} onSave={save} saving={busy} />
         </>
@@ -90,7 +95,7 @@ function NewJob() {
 
 export default function Page() {
   return (
-    <RequireAuth>
+    <RequireAuth roles={["student", "advisor", "hr", "manager", "hiring_lead"]}>
       <NewJob />
     </RequireAuth>
   );

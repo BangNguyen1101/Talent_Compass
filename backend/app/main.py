@@ -4,12 +4,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, cvs, interviews, jobs
+from app.routers import advisor, auth, cvs, hiring, interviews, jobs, orgs, quality, surveys
+from app.security import ActorMiddleware
 
 logging.basicConfig(level=logging.INFO)
 
 settings = get_settings()
-app = FastAPI(title="TalentCompass API", version="0.1.0")
+app = FastAPI(title="TalentCompass API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,7 +22,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth.router, jobs.router, cvs.router, interviews.router):
+app.add_middleware(ActorMiddleware)
+
+for r in (auth.router, orgs.router, jobs.router, cvs.router, interviews.router, advisor.router,
+          quality.router, hiring.router, surveys.router):
     app.include_router(r)
 
 

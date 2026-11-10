@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     llm_smart_model: str = "claude-sonnet-5-5"
     # Khi không có API key -> trả dữ liệu mẫu để chạy thử giao diện
     llm_mock: bool = False
+    # Kiểm soát chi phí: số lượt gọi AI tối đa mỗi người/ngày
+    daily_ai_quota_per_user: int = 80
+    # Ẩn danh khảo sát: nhóm nhỏ hơn ngưỡng này sẽ không hiển thị chi tiết
+    survey_min_group_size: int = 5
 
     @property
     def sqlalchemy_url(self) -> str:
