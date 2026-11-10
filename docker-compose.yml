@@ -1,0 +1,33 @@
+# Chạy local: docker compose up -d db   (chỉ database)
+#            docker compose up --build  (database + backend)
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: talent
+      POSTGRES_PASSWORD: talent
+      POSTGRES_DB: talentcompass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U talent -d talentcompass"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://talent:talent@db:5432/talentcompass
+      JWT_SECRET: local-dev-secret
+      FRONTEND_URL: http://localhost:3000
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

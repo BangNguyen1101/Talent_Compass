@@ -1,0 +1,34 @@
+# Render Blueprint: Render đọc file này để tạo database + backend cùng lúc.
+# Dashboard Render → New → Blueprint → chọn repo này.
+databases:
+  - name: talentcompass-db
+    region: singapore
+    plan: free          # DB free hết hạn sau ~30 ngày; đổi sang basic-256mb khi chạy thật
+    databaseName: talentcompass
+    user: talent
+
+services:
+  - type: web
+    name: talentcompass-api
+    runtime: docker
+    region: singapore
+    plan: free          # free ngủ sau 15 phút không dùng; starter để luôn bật
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: talentcompass-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false      # điền link Vercel sau khi deploy frontend
+      - key: ANTHROPIC_API_KEY
+        sync: false      # điền trên dashboard, không ghi vào code
+      - key: LLM_FAST_MODEL
+        value: claude-haiku-5-5
+      - key: LLM_SMART_MODEL
+        value: claude-sonnet-5-5
