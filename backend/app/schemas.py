@@ -63,7 +63,7 @@ class OrgOut(ORM):
 class OrgUpdate(BaseModel):
     name: str | None = None
     brand_voice: str | None = Field(default=None, max_length=4000)
-    jd_approval_levels: int | None = Field(default=None, ge=1, le=3)
+    jd_approval_levels: int | None = Field(default=None, ge=0, le=3)
 
 
 class MemberUpdate(BaseModel):
@@ -138,6 +138,9 @@ class JobOut(BaseModel):
     question_bank: list
     approvals: list = []
     can_edit: bool = False
+    company: str | None = None
+    my_application: str | None = None  # trạng thái đơn ứng tuyển của chính người xem (sinh viên)
+    internal: bool = False  # người xem là nhân sự công ty sở hữu JD
 
 
 class JobCheckOut(BaseModel):

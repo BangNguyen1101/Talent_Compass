@@ -7,16 +7,18 @@ Trường học: cố vấn ban hành JD mẫu cho sinh viên luyện tập. Sin
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.ai import services
 from app.ai.llm import LLMError, model_name
-from app.core import bias, jd_checks
+from app.core import ats, bias, jd_checks
 from app.db import get_db
 from app.models import (
+    CV,
     AuditLog,
+    Candidate,
     Competency,
     HeadcountPlan,
     JDApproval,
@@ -37,11 +39,18 @@ from app.schemas import (
     ReviewIn,
     StatusIn,
 )
-from app.security import get_current_user, require_roles
+from app.security import get_current_user, require_org, require_roles
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 HIRING_ROLES = {Role.hr, Role.manager, Role.hiring_lead, Role.interviewer, Role.admin}
+COMPANY_STAFF = {Role.hr, Role.manager, Role.hiring_lead, Role.interviewer}
+
+
+def require_hr(user: User = Depends(require_roles(Role.hr))) -> User:
+    """Chỉ HR thuộc một công ty mới soạn/tạo JD."""
+    require_org(user)
+    return user
 ACTIVE_STATUSES = (JobStatus.pending_approval, JobStatus.published)
 
 
@@ -76,25 +85,35 @@ def approvals_of(db: Session, jd_id: uuid.UUID) -> list[dict]:
 def can_view(jd: JobDescription, user: User) -> bool:
     if jd.created_by == user.id or user.role == Role.admin:
         return True
-    if user.org_id and jd.org_id == user.org_id:
-        # Trong trường: sinh viên chỉ thấy JD cố vấn đã ban hành
-        return user.role != Role.student or jd.status == JobStatus.published
-    # JD công ty đã ban hành: ai cũng xem được (sinh viên luyện tập theo tin tuyển dụng thật)
+    if user.org_id and jd.org_id == user.org_id and user.role in COMPANY_STAFF:
+        return True  # nhân sự công ty thấy mọi JD của công ty mình (kể cả nháp, chờ duyệt)
+    # Sàn việc làm: JD đã ban hành của mọi công ty ai cũng xem được
     return jd.status == JobStatus.published and jd.org_id is not None
 
 
 def can_edit(jd: JobDescription, user: User) -> bool:
-    if user.role == Role.admin or jd.created_by == user.id:
+    """Chỉ HR của công ty sở hữu JD được sửa/xóa/gửi duyệt."""
+    if user.role == Role.admin:
         return True
-    return user.role in (Role.hr, Role.advisor) and user.org_id is not None and jd.org_id == user.org_id
+    return user.role == Role.hr and user.org_id is not None and jd.org_id == user.org_id
 
 
 def to_out(db: Session, jd: JobDescription, user: User) -> JobOut:
-    return JobOut(id=jd.id, title=jd.title, level=jd.level, department=jd.department, job_family=jd.job_family,
+    company = db.scalar(select(Organization.name).where(Organization.id == jd.org_id)) if jd.org_id else None
+    my_app = None
+    if user.role == Role.student:
+        my_app = db.scalar(select(Candidate.stage).where(Candidate.jd_id == jd.id, Candidate.applicant_id == user.id))
+    # Thông tin nội bộ (lịch sử duyệt, cảnh báo thiên vị, ngân hàng câu hỏi phỏng vấn) chỉ dành cho
+    # nhân sự của công ty sở hữu JD; ứng viên trên sàn không được thấy.
+    internal = user.role == Role.admin or (
+        user.org_id is not None and jd.org_id == user.org_id and user.role in COMPANY_STAFF)
+    return JobOut(company=company, my_application=my_app, internal=internal,
+                  id=jd.id, title=jd.title, level=jd.level, department=jd.department, job_family=jd.job_family,
                   headcount=jd.headcount, content=jd.content, status=jd.status, created_at=jd.created_at,
                   created_by=jd.created_by, org_id=jd.org_id, competencies=comps_out(jd),
-                  bias_issues=jd.bias_issues or [], question_bank=jd.question_bank or [],
-                  approvals=approvals_of(db, jd.id) if jd.org_id else [], can_edit=can_edit(jd, user))
+                  bias_issues=(jd.bias_issues or []) if internal else [],
+                  question_bank=(jd.question_bank or []) if internal else [],
+                  approvals=approvals_of(db, jd.id) if internal else [], can_edit=can_edit(jd, user))
 
 
 def get_job_or_404(db: Session, jd_id: uuid.UUID, user: User) -> JobDescription:
@@ -179,7 +198,7 @@ def _audit(db: Session, user: User, action: str, jd: JobDescription, **detail) -
 # ---------------------------------------------------------------- endpoints
 
 @router.post("/generate", response_model=JobIn)
-def generate_jd(body: JDGenerateIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def generate_jd(body: JDGenerateIn, user: User = Depends(require_hr), db: Session = Depends(get_db)):
     """AI soạn bản nháp JD + khung năng lực (chưa lưu). Dùng phong cách thương hiệu, từ điển năng lực
     và JD đã ban hành cùng nhóm vị trí của tổ chức làm tham chiếu."""
     org = _org(db, user)
@@ -209,13 +228,13 @@ def generate_jd(body: JDGenerateIn, user: User = Depends(get_current_user), db: 
 
 
 @router.post("/check", response_model=JobCheckOut)
-def check_job(body: JobIn, exclude_id: uuid.UUID | None = None, user: User = Depends(get_current_user),
+def check_job(body: JobIn, exclude_id: uuid.UUID | None = None, user: User = Depends(require_hr),
               db: Session = Depends(get_db)):
     return run_checks(db, user, body, exclude_id)
 
 
 @router.post("/neutralize")
-def neutralize(body: NeutralizeIn, user: User = Depends(get_current_user)):
+def neutralize(body: NeutralizeIn, user: User = Depends(require_hr)):
     """Phát hiện và AI viết lại câu thiên vị."""
     issues = bias.detect(body.content)
     if not issues:
@@ -228,11 +247,8 @@ def neutralize(body: NeutralizeIn, user: User = Depends(get_current_user)):
 
 
 @router.post("", response_model=JobOut, status_code=201)
-def create_job(body: JobIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if user.role in (Role.employee, Role.interviewer):
-        raise HTTPException(403, "Vai trò của bạn không tạo JD")
-    org_id = user.org_id if user.role in (Role.hr, Role.advisor, Role.manager, Role.hiring_lead) else None
-    jd = JobDescription(created_by=user.id, org_id=org_id, title=body.title, status=JobStatus.draft)
+def create_job(body: JobIn, user: User = Depends(require_hr), db: Session = Depends(get_db)):
+    jd = JobDescription(created_by=user.id, org_id=user.org_id, title=body.title, status=JobStatus.draft)
     db.add(jd)
     _apply(db, jd, body)
     _audit(db, user, "jd.create", jd)
@@ -243,18 +259,90 @@ def create_job(body: JobIn, user: User = Depends(get_current_user), db: Session 
 
 @router.get("", response_model=list[JobOut])
 def list_jobs(scope: str = "all", user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    conds = [JobDescription.created_by == user.id,
-             (JobDescription.status == JobStatus.published) & JobDescription.org_id.is_not(None)]
-    if user.org_id:
-        if user.role == Role.student:
-            conds.append((JobDescription.org_id == user.org_id) & (JobDescription.status == JobStatus.published))
-        else:
+    """scope=org: mọi JD của công ty mình (nhân sự công ty quản lý).
+    scope=all: JD đã ban hành của mọi công ty (+ JD công ty mình nếu là nhân sự)."""
+    is_staff = user.org_id is not None and user.role in COMPANY_STAFF
+    if scope == "org":
+        if not is_staff:
+            return []
+        q = select(JobDescription).where(JobDescription.org_id == user.org_id)
+    else:
+        companies = select(Organization.id).where(Organization.kind == "company")
+        conds = [(JobDescription.status == JobStatus.published) & JobDescription.org_id.in_(companies)]
+        if is_staff:
             conds.append(JobDescription.org_id == user.org_id)
-    q = select(JobDescription).where(or_(*conds))
-    if scope == "org" and user.org_id:
-        q = q.where(JobDescription.org_id == user.org_id)
+        q = select(JobDescription).where(or_(*conds))
     jobs = db.scalars(q.order_by(JobDescription.created_at.desc())).unique().all()
     return [to_out(db, j, user) for j in jobs]
+
+
+@router.get("/board")
+def job_board(q: str = "", company: uuid.UUID | None = None, level: str = "", job_family: str = "",
+              department: str = "", competency: str = "", cv_id: uuid.UUID | None = None,
+              sort: str = "newest", limit: int = Query(50, le=100), offset: int = 0,
+              user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Sàn việc làm: JD đã ban hành của mọi công ty, tìm kiếm + lọc.
+    Có cv_id: chấm mức khớp CV-JD bằng luật ATS (không tốn AI) và cho phép sắp xếp theo độ phù hợp."""
+    stmt = (select(JobDescription, Organization.name).join(Organization, Organization.id == JobDescription.org_id)
+            .where(JobDescription.status == JobStatus.published, Organization.kind == "company"))
+    if q.strip():
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(or_(JobDescription.title.ilike(like), JobDescription.content.ilike(like),
+                              Organization.name.ilike(like)))
+    if company:
+        stmt = stmt.where(JobDescription.org_id == company)
+    if level:
+        stmt = stmt.where(JobDescription.level == level)
+    if job_family:
+        stmt = stmt.where(func.lower(JobDescription.job_family) == job_family.lower())
+    if department:
+        stmt = stmt.where(func.lower(JobDescription.department) == department.lower())
+    if competency.strip():
+        stmt = stmt.where(JobDescription.id.in_(
+            select(JDCompetency.jd_id).join(Competency, Competency.id == JDCompetency.competency_id)
+            .where(Competency.name.ilike(f"%{competency.strip()}%"))))
+    rows = db.execute(stmt.order_by(JobDescription.created_at.desc())).unique().all()
+
+    cv_text = None
+    if cv_id:
+        cv = db.get(CV, cv_id)
+        if not cv or cv.user_id != user.id:
+            raise HTTPException(404, "Không tìm thấy CV")
+        cv_text = cv.redacted_text
+    applied = set(db.scalars(select(Candidate.jd_id).where(Candidate.applicant_id == user.id)).all())
+
+    items = []
+    for jd, company_name in rows:
+        comps = comps_out(jd)
+        item = {"id": str(jd.id), "title": jd.title, "level": jd.level, "department": jd.department,
+                "job_family": jd.job_family, "headcount": jd.headcount, "company": company_name,
+                "company_id": str(jd.org_id), "created_at": jd.created_at.isoformat(),
+                "competencies": [c.name for c in comps], "summary": jd.content[:240],
+                "applied": jd.id in applied, "match": None}
+        if cv_text is not None:
+            r = ats.score(cv_text, jd.content, [c.name for c in comps])
+            item["match"] = {"score": r["score"], "matched": r["matched_keywords"][:8],
+                             "missing": r["missing_keywords"][:8]}
+        items.append(item)
+    if sort == "match" and cv_text is not None:
+        items.sort(key=lambda i: -i["match"]["score"])
+    return {"total": len(items), "items": items[offset: offset + limit]}
+
+
+@router.get("/board/facets")
+def board_facets(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Giá trị cho bộ lọc: công ty, cấp độ, nhóm vị trí, phòng ban (chỉ từ JD đã ban hành)."""
+    base = (select(JobDescription, Organization).join(Organization, Organization.id == JobDescription.org_id)
+            .where(JobDescription.status == JobStatus.published, Organization.kind == "company"))
+    rows = db.execute(base).unique().all()
+    companies = {str(o.id): o.name for _, o in rows}
+    return {
+        "companies": [{"id": k, "name": v, "jobs": sum(1 for j, _ in rows if str(j.org_id) == k)}
+                      for k, v in sorted(companies.items(), key=lambda kv: kv[1])],
+        "levels": sorted({j.level for j, _ in rows}, key=jd_checks.level_rank),
+        "job_families": sorted({j.job_family for j, _ in rows if j.job_family}),
+        "departments": sorted({j.department for j, _ in rows if j.department}),
+    }
 
 
 @router.get("/pending-approval", response_model=list[JobOut])
@@ -309,9 +397,16 @@ def submit(jd_id: uuid.UUID, user: User = Depends(get_current_user), db: Session
     if not jd.competencies:
         raise HTTPException(422, "JD cần có khung năng lực")
     org = db.get(Organization, jd.org_id)
+    if org.jd_approval_levels > 0:
+        managers = db.scalar(select(func.count(User.id)).where(
+            User.org_id == org.id, User.role == Role.manager, User.is_active.is_(True))) or 0
+        if managers < org.jd_approval_levels:
+            raise HTTPException(422, f"Công ty cần ít nhất {org.jd_approval_levels} quản lý phê duyệt "
+                                     f"(hiện có {managers}). Mời quản lý tham gia bằng mã công ty, "
+                                     "hoặc đổi số cấp duyệt trong Cài đặt.")
     db.add(JDApproval(jd_id=jd.id, level=0, approver_id=user.id, decision="submitted"))
-    if org.kind == "school":
-        jd.status = JobStatus.published  # JD mẫu cho sinh viên, cố vấn tự ban hành
+    if org.jd_approval_levels == 0:
+        jd.status = JobStatus.published  # công ty chọn không cần duyệt: HR tự ban hành
     else:
         jd.status = JobStatus.pending_approval
     _audit(db, user, "jd.submit", jd)

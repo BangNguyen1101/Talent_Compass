@@ -36,6 +36,102 @@ def make_job(h, title="Backend Developer", **extra) -> dict:
     return r.json()
 
 
+def published_job(company: str, title: str, level: str = "junior", **extra) -> dict:
+    """HR công ty (không yêu cầu duyệt) tạo và ban hành một JD lên sàn."""
+    hr, _ = register("hr", org=company)
+    client.patch("/org", json={"jd_approval_levels": 0}, headers=hr)
+    job = make_job(hr, title, level=level, **extra)
+    r = client.post(f"/jobs/{job['id']}/submit", headers=hr)
+    assert r.json()["status"] == "published", r.text
+    return {**r.json(), "_hr": hr}
+
+
+# ================================================================ Sàn việc làm & ứng tuyển
+
+def test_only_hr_creates_jobs():
+    hr, _ = register("hr", org="Cty Quyền")
+    code = join_code(hr)
+    body = {**client.post("/jobs/generate", json={"title": "Tester"}, headers=hr).json()}
+    for role, extra in [("student", {}), ("advisor", {"org": "Trường Q"}), ("manager", {"code": code}),
+                        ("hiring_lead", {"code": code})]:
+        h, _ = register(role, **extra)
+        assert client.post("/jobs", json=body, headers=h).status_code == 403, role
+        assert client.post("/jobs/generate", json={"title": "x"}, headers=h).status_code == 403, role
+
+
+def test_submit_requires_manager_when_approval_enabled():
+    hr, _ = register("hr", org="Cty Không Quản Lý")
+    job = make_job(hr, "Kế toán")
+    r = client.post(f"/jobs/{job['id']}/submit", headers=hr)
+    assert r.status_code == 422 and "quản lý" in r.json()["detail"]
+
+
+def test_job_board_search_filter_match_and_apply():
+    tag = uuid.uuid4().hex[:6]
+    a = published_job(f"Alpha {tag}", f"Python Backend {tag}", "junior")
+    b = published_job(f"Beta {tag}", f"Kế toán tổng hợp {tag}", "senior")
+
+    # Mọi vai trò đều xem được sàn
+    adv, _ = register("advisor", org="Trường B")
+    st, _ = register("student")
+    for h in (adv, st, b["_hr"]):
+        ids = [i["id"] for i in client.get(f"/jobs/board?q={tag}", headers=h).json()["items"]]
+        assert a["id"] in ids and b["id"] in ids
+
+    # Lọc theo công ty, cấp độ, từ khóa
+    only_a = client.get(f"/jobs/board?q={tag}&company={a['org_id']}", headers=st).json()["items"]
+    assert [i["id"] for i in only_a] == [a["id"]]
+    seniors = client.get(f"/jobs/board?q={tag}&level=senior", headers=st).json()["items"]
+    assert [i["id"] for i in seniors] == [b["id"]]
+    facets = client.get("/jobs/board/facets", headers=st).json()
+    assert any(c["id"] == a["org_id"] for c in facets["companies"]) and "senior" in facets["levels"]
+
+    # Ứng viên không thấy thông tin nội bộ của JD (câu hỏi phỏng vấn, lịch sử duyệt)
+    client.post(f"/jobs/{a['id']}/question-bank", headers=a["_hr"])
+    public = client.get(f"/jobs/{a['id']}", headers=st).json()
+    assert public["question_bank"] == [] and public["approvals"] == [] and public["internal"] is False
+    assert client.get(f"/jobs/{a['id']}", headers=a["_hr"]).json()["question_bank"]
+
+    # JD nháp của công ty không xuất hiện trên sàn
+    draft = make_job(a["_hr"], f"Nháp {tag}")
+    assert draft["id"] not in [i["id"] for i in client.get(f"/jobs/board?q={tag}", headers=st).json()["items"]]
+
+    # Khớp CV
+    cv = client.post("/cvs", files={"file": ("cv.txt", f"Kinh nghiệm Python Backend {tag}".encode(), "text/plain")},
+                     headers=st).json()
+    ranked = client.get(f"/jobs/board?q={tag}&cv_id={cv['id']}&sort=match", headers=st).json()["items"]
+    assert ranked[0]["match"] is not None and ranked[0]["match"]["score"] >= ranked[-1]["match"]["score"]
+
+    # Ứng tuyển -> vào quy trình tuyển dụng của công ty A
+    assert client.post(f"/jobs/{a['id']}/apply", json={"cv_id": cv["id"]}, headers=adv).status_code == 403
+    r = client.post(f"/jobs/{a['id']}/apply", json={"cv_id": cv["id"], "cover_note": "Em rất quan tâm"}, headers=st)
+    assert r.status_code == 201
+    assert client.post(f"/jobs/{a['id']}/apply", json={"cv_id": cv["id"]}, headers=st).status_code == 409
+    flags = {i["id"]: i["applied"] for i in client.get(f"/jobs/board?q={tag}", headers=st).json()["items"]}
+    assert flags[a["id"]] is True and flags[b["id"]] is False
+
+    cands = client.get("/hiring/candidates", headers=a["_hr"]).json()
+    mine = [c for c in cands if c["source"] == "applied"]
+    assert len(mine) == 1 and mine[0]["stage"] == "applied"
+    assert client.get("/hiring/candidates", headers=b["_hr"]).json() == []  # công ty khác không thấy
+
+    # Sàng lọc hồ sơ: từ chối trước phỏng vấn được, tuyển thì không
+    cid = mine[0]["id"]
+    assert client.post(f"/hiring/candidates/{cid}/decision", json={"decision": "hire", "rationale": "Chưa phỏng vấn"},
+                       headers=a["_hr"]).status_code == 422
+    assert client.post(f"/hiring/candidates/{cid}/decision",
+                       json={"decision": "reject", "rationale": "Chưa đủ kinh nghiệm Python"},
+                       headers=a["_hr"]).status_code == 201
+    apps = client.get("/me/applications", headers=st).json()
+    assert apps[0]["status"] == "Chưa phù hợp lần này" and apps[0]["can_withdraw"] is False
+
+    # Rút đơn khi chưa được xử lý
+    client.post(f"/jobs/{b['id']}/apply", json={"cv_id": cv["id"]}, headers=st)
+    app_b = next(x for x in client.get("/me/applications", headers=st).json() if x["jd_id"] == b["id"])
+    assert client.post(f"/me/applications/{app_b['id']}/withdraw", headers=st).json()["ok"]
+    assert client.get("/hiring/candidates", headers=b["_hr"]).json() == []
+
+
 # ================================================================ BO-15
 
 def test_bo15_approval_bias_headcount():
@@ -101,8 +197,7 @@ def test_edu17_student_advisor_flow():
     code = join_code(adv)
     st, st_user = register("student", code=code)
 
-    job = make_job(adv, "Python Developer")
-    assert client.post(f"/jobs/{job['id']}/submit", headers=adv).json()["status"] == "published"
+    job = published_job("Cty EDU17", "Python Developer")
     assert job["id"] in [j["id"] for j in client.get("/jobs", headers=st).json()]
 
     cv_text = ("Kinh nghiệm: Thực tập Python tại Công ty A, viết API.\nHọc vấn: Đại học X\n"

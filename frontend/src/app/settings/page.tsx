@@ -151,8 +151,10 @@ function OrgSettings() {
               <div className="max-w-xs">
                 <label className="label">Số cấp phê duyệt JD</label>
                 <select className="input" value={org.jd_approval_levels} onChange={(e) => setOrg({ ...org, jd_approval_levels: Number(e.target.value) })}>
+                  <option value={0}>Không cần duyệt (HR tự ban hành)</option>
                   {[1, 2, 3].map((n) => <option key={n} value={n}>{n} cấp</option>)}
                 </select>
+                <p className="mt-1 text-xs text-slate-500">Cần đủ số quản lý phê duyệt (vai trò “Quản lý phê duyệt”) tương ứng số cấp.</p>
               </div>
             </>
           )}

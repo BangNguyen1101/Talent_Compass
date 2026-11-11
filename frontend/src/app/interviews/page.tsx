@@ -26,7 +26,7 @@ function InterviewList() {
       <div>
         <h1 className="text-2xl font-bold">Phỏng vấn thử</h1>
         <p className="text-sm text-slate-600">
-          Để bắt đầu buổi mới, mở một JD ở mục <Link href="/jobs" className="text-indigo-700 underline">JD & năng lực</Link> và bấm “Phỏng vấn thử”.
+          Để bắt đầu buổi mới, mở một JD ở mục <Link href="/jobs" className="text-indigo-700 underline">Việc làm</Link> và bấm “Phỏng vấn thử”.
         </p>
       </div>
       <ErrorBox message={error} />

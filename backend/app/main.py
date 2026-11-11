@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import advisor, auth, cvs, hiring, interviews, jobs, orgs, quality, surveys
+from app.routers import advisor, applications, auth, cvs, hiring, interviews, jobs, orgs, quality, surveys
 from app.security import ActorMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +24,7 @@ app.add_middleware(
 
 app.add_middleware(ActorMiddleware)
 
-for r in (auth.router, orgs.router, jobs.router, cvs.router, interviews.router, advisor.router,
+for r in (auth.router, orgs.router, applications.router, jobs.router, cvs.router, interviews.router, advisor.router,
           quality.router, hiring.router, surveys.router):
     app.include_router(r)
 

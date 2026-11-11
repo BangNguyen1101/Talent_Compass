@@ -8,7 +8,10 @@ import { STAGE } from "@/lib/roles";
 import type { Job } from "@/lib/types";
 import { Badge, ErrorBox, RequireAuth } from "@/components/ui";
 
-interface Row { id: string; full_name: string; jd_title: string; stage: string; rounds: number; my_pending_rounds: string[]; created_at: string }
+interface Row {
+  id: string; full_name: string; jd_title: string; stage: string; rounds: number; my_pending_rounds: string[];
+  created_at: string; source: string; match_score: number | null;
+}
 
 function Hiring() {
   const { user } = useAuth();
@@ -42,7 +45,7 @@ function Hiring() {
         <h1 className="text-2xl font-bold">{isLead ? "Tuyển dụng" : "Lịch phỏng vấn của tôi"}</h1>
         <p className="text-sm text-slate-600">
           {isLead
-            ? "Tạo ứng viên, lập vòng phỏng vấn theo khung năng lực, tổng hợp đánh giá nhiều người và ra quyết định."
+            ? "Ứng viên tự ứng tuyển từ sàn Việc làm hoặc do bạn thêm. Lập vòng phỏng vấn theo khung năng lực, tổng hợp đánh giá nhiều người và ra quyết định."
             : "Ứng viên bạn được phân công. Chấm độc lập: bạn không thấy điểm của người phỏng vấn khác."}
         </p>
       </div>
@@ -68,7 +71,10 @@ function Hiring() {
           <Link key={r.id} href={`/hiring/candidates/${r.id}`} className="card flex flex-wrap items-center justify-between gap-2 hover:border-indigo-300">
             <div>
               <p className="font-medium">{r.full_name}</p>
-              <p className="text-xs text-slate-500">{r.jd_title} · {r.rounds} vòng</p>
+              <p className="text-xs text-slate-500">
+                {r.jd_title} · {r.rounds} vòng · {r.source === "applied" ? "tự ứng tuyển" : "HR thêm"}
+                {r.match_score != null && ` · khớp CV ${r.match_score}%`}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               {r.my_pending_rounds.length > 0 && <Badge cls="bg-red-100 text-red-700">Bạn cần chấm {r.my_pending_rounds.length} vòng</Badge>}

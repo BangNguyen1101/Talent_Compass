@@ -6,11 +6,71 @@ import { useCallback, useEffect, useState } from "react";
 import { api, del, post, put } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { JOB_STATUS, ROUND_TYPES } from "@/lib/roles";
-import type { Interview, Job, JobChecks, JobInput } from "@/lib/types";
+import type { CV, Interview, Job, JobChecks, JobInput } from "@/lib/types";
 import { JobEditor } from "@/components/JobEditor";
 import { Badge, BiasList, Csat, ErrorBox, Notice, RequireAuth } from "@/components/ui";
 
-const ORG_STAFF = ["hr", "manager", "hiring_lead", "interviewer", "advisor"];
+const ORG_STAFF = ["hr", "manager", "hiring_lead", "interviewer"];
+
+function ApplyBox({ job, onApplied }: { job: Job; onApplied: () => void }) {
+  const [cvs, setCvs] = useState<CV[]>([]);
+  const [cvId, setCvId] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<CV[]>("/cvs").then((c) => { setCvs(c); if (c[0]) setCvId(c[0].id); }).catch(() => {});
+  }, []);
+
+  if (job.my_application && job.my_application !== "withdrawn") {
+    return (
+      <Notice tone="ok" title="Bạn đã ứng tuyển vị trí này">
+        Theo dõi trạng thái ở <Link href="/applications" className="underline">Đơn ứng tuyển</Link>.
+      </Notice>
+    );
+  }
+
+  async function apply() {
+    setBusy(true);
+    setError(null);
+    try {
+      await post(`/jobs/${job.id}/apply`, { cv_id: cvId, cover_note: note });
+      onApplied();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card space-y-3 border-indigo-200">
+      <h2 className="font-semibold">Ứng tuyển vào {job.company}</h2>
+      {cvs.length === 0 ? (
+        <p className="text-sm">Bạn cần <Link href="/cv" className="text-indigo-700 underline">tải CV lên</Link> trước khi ứng tuyển.</p>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label">CV gửi kèm</label>
+              <select className="input" value={cvId} onChange={(e) => setCvId(e.target.value)}>
+                {cvs.map((c) => <option key={c.id} value={c.id}>{c.filename} · {new Date(c.created_at).toLocaleDateString("vi-VN")}</option>)}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <Link href={`/cv?jd=${job.id}`} className="text-sm text-indigo-700 hover:underline">Chấm CV theo JD này trước khi nộp →</Link>
+            </div>
+          </div>
+          <textarea className="input min-h-20" placeholder="Lời nhắn cho nhà tuyển dụng (không bắt buộc)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <p className="text-xs text-slate-500">Công ty nhận nội dung CV đã che email, số điện thoại, ngày sinh, địa chỉ.</p>
+          <ErrorBox message={error} />
+          <button className="btn" onClick={apply} disabled={busy || !cvId}>{busy ? "Đang nộp..." : "Nộp đơn ứng tuyển"}</button>
+        </>
+      )}
+    </div>
+  );
+}
 
 function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -69,10 +129,10 @@ function JobDetail() {
   if (editing) return <JobEditor initial={job} onSave={save} saving={busy === "save"} jobId={job.id} />;
 
   const st = JOB_STATUS[job.status];
-  const isSchool = user!.role === "advisor";
   const canReview = user!.role === "manager" && job.status === "pending_approval" && job.created_by !== user!.id;
-  const practiceRole = user!.role === "student" || !user!.org_id;
-  const showBank = ORG_STAFF.includes(user!.role) && job.org_id;
+  const isSeeker = user!.role === "student";
+  const isOwnCompany = !!user!.org_id && job.org_id === user!.org_id;
+  const showBank = ORG_STAFF.includes(user!.role) && isOwnCompany;
 
   return (
     <div className="space-y-6">
@@ -82,6 +142,7 @@ function JobDetail() {
             <h1 className="text-2xl font-bold">{job.title}</h1>
             <Badge cls={st.cls}>{st.label}</Badge>
           </div>
+          {job.company && <p className="font-medium text-indigo-700">{job.company}</p>}
           <p className="text-sm text-slate-500">
             {job.level}{job.department && ` · ${job.department}`}{job.job_family && ` · nhóm ${job.job_family}`}
             {job.org_id && ` · tuyển ${job.headcount} người`}
@@ -91,14 +152,14 @@ function JobDetail() {
           {job.can_edit && <button className="btn-ghost" onClick={() => setEditing(true)}>Sửa</button>}
           {job.can_edit && job.org_id && (job.status === "draft" || job.status === "rejected") && (
             <button className="btn" disabled={!!busy} onClick={() => act("submit", () => post(`/jobs/${id}/submit`))}>
-              {isSchool ? "Ban hành cho sinh viên" : "Gửi quản lý duyệt"}
+              Gửi duyệt / ban hành
             </button>
           )}
           {job.can_edit && job.status === "published" && (
             <button className="btn-ghost" onClick={() => act("close", () => post(`/jobs/${id}/status`, { status: "closed" }))}>Đóng tuyển</button>
           )}
           {job.can_edit && (
-            <button className="btn-ghost text-red-600" onClick={async () => { if (confirm("Xóa JD này?")) { await del(`/jobs/${id}`); router.push("/jobs"); } }}>Xóa</button>
+            <button className="btn-ghost text-red-600" onClick={async () => { if (confirm("Xóa JD này?")) { await del(`/jobs/${id}`); router.push("/company-jobs"); } }}>Xóa</button>
           )}
         </div>
       </div>
@@ -107,9 +168,12 @@ function JobDetail() {
         <Notice tone="warn">JD đang chờ quản lý duyệt. Nếu sửa nội dung, JD sẽ quay về nháp và phải gửi duyệt lại.</Notice>
       )}
 
-      {practiceRole && (
+      {isSeeker && job.status === "published" && <ApplyBox job={job} onApplied={load} />}
+
+      {isSeeker && (
         <div className="card flex flex-wrap items-end gap-3">
-          <Link href={`/cv?jd=${job.id}`} className="btn">Chấm CV theo JD này</Link>
+          <p className="w-full text-sm font-medium">Chuẩn bị cho vị trí này</p>
+          <Link href={`/cv?jd=${job.id}`} className="btn-ghost">Chấm CV theo JD này</Link>
           <div className="ml-auto flex flex-wrap items-end gap-2">
             <div>
               <label className="label">Loại vòng</label>

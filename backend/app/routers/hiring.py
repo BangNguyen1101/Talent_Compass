@@ -105,7 +105,7 @@ def _round_out(db: Session, r: InterviewRound, user: User) -> dict:
 def list_candidates(user: User = Depends(require_roles(Role.hiring_lead, Role.hr, Role.interviewer)),
                     db: Session = Depends(get_db)):
     q = select(Candidate, JobDescription.title).join(JobDescription, JobDescription.id == Candidate.jd_id) \
-        .where(Candidate.org_id == require_org(user))
+        .where(Candidate.org_id == require_org(user), Candidate.stage != "withdrawn")
     if not _is_lead(user):
         assigned = select(InterviewRound.candidate_id).where(
             InterviewRound.interviewer_ids.contains([str(user.id)]))
@@ -118,6 +118,7 @@ def list_candidates(user: User = Depends(require_roles(Role.hiring_lead, Role.hr
                         and not db.scalar(select(Scorecard.submitted).where(Scorecard.round_id == r.id,
                                                                              Scorecard.interviewer_id == user.id))]
         out.append({"id": str(c.id), "full_name": c.full_name, "jd_title": title, "stage": c.stage,
+                    "source": c.source, "match_score": c.match_score,
                     "rounds": len(rounds), "my_pending_rounds": pending_mine,
                     "created_at": c.created_at.isoformat()})
     return out
@@ -142,7 +143,8 @@ def get_candidate(cid: uuid.UUID, user: User = Depends(get_current_user), db: Se
     rounds = db.scalars(select(InterviewRound).where(InterviewRound.candidate_id == c.id)
                         .order_by(InterviewRound.round_no)).all()
     visible = [r for r in rounds if _is_lead(user) or str(user.id) in r.interviewer_ids]
-    out = {"id": str(c.id), "full_name": c.full_name, "stage": c.stage,
+    out = {"id": str(c.id), "full_name": c.full_name, "stage": c.stage, "source": c.source,
+           "match_score": c.match_score, "cover_note": c.cover_note if _is_lead(user) else "",
            "jd": {"id": str(jd.id), "title": jd.title, "level": jd.level, "competencies": competencies_for_ai(jd)},
            "rounds": [_round_out(db, r, user) for r in visible], "is_lead": _is_lead(user)}
     if _is_lead(user):
@@ -296,9 +298,12 @@ def decide(cid: uuid.UUID, body: DecisionIn, user: User = Depends(require_roles(
     last = db.scalar(select(InterviewRound).where(InterviewRound.candidate_id == c.id,
                                                   InterviewRound.status == "closed")
                      .order_by(InterviewRound.round_no.desc()))
-    if not last:
+    if c.stage == "withdrawn":
+        raise HTTPException(409, "Ứng viên đã rút đơn")
+    # Sàng lọc hồ sơ: được từ chối đơn ứng tuyển trước khi phỏng vấn; tuyển thì bắt buộc qua phỏng vấn
+    if not last and not (c.stage == "applied" and body.decision == "reject"):
         raise HTTPException(422, "Cần đóng ít nhất một vòng phỏng vấn trước khi quyết định")
-    ai_rec = (last.recommendation or {}).get("recommendation")
+    ai_rec = (last.recommendation or {}).get("recommendation") if last else None
     d = HiringDecision(candidate_id=c.id, decision=body.decision, rationale=body.rationale,
                        committee=body.committee or [user.full_name], decided_by=user.id,
                        followed_ai=(REC_MATCH[body.decision] == ai_rec) if ai_rec else None)

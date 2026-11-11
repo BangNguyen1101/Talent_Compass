@@ -23,6 +23,7 @@ interface Round {
 }
 interface Candidate {
   id: string; full_name: string; stage: string; is_lead: boolean; email?: string; cv_text?: string;
+  source: string; match_score: number | null; cover_note: string;
   jd: { id: string; title: string; level: string; competencies: Competency[] };
   rounds: Round[];
   profile_memory?: { round_no: number; name: string; fit_score: number | null; summary: string; probe_next_round: string[] }[];
@@ -166,14 +167,22 @@ function CandidatePage() {
 
   if (!c) return error ? <ErrorBox message={error} /> : <p className="text-slate-500">Đang tải...</p>;
   const hasClosed = c.rounds.some((r) => r.status === "closed");
+  const screeningOnly = !hasClosed && c.stage === "applied"; // sàng lọc hồ sơ: chỉ được từ chối
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">{c.full_name}</h1>
-        <p className="text-sm text-slate-500">{c.jd.title} ({c.jd.level}){c.email && ` · ${c.email}`}</p>
+        <p className="text-sm text-slate-500">
+          {c.jd.title} ({c.jd.level}){c.email && ` · ${c.email}`} · {c.source === "applied" ? "tự ứng tuyển qua sàn việc làm" : "HR thêm"}
+          {c.match_score != null && ` · khớp CV ${c.match_score}%`}
+        </p>
       </div>
       <ErrorBox message={error} />
+      {c.is_lead && c.cover_note && <Notice title="Lời nhắn của ứng viên">{c.cover_note}</Notice>}
+      {c.is_lead && c.stage === "applied" && (
+        <Notice tone="warn">Đơn mới: xem CV, rồi tạo vòng phỏng vấn để mời ứng viên, hoặc từ chối hồ sơ ở phần quyết định bên dưới.</Notice>
+      )}
 
       {c.is_lead && c.cv_text && (
         <details className="card text-sm"><summary className="cursor-pointer font-medium">CV ứng viên (đã che thông tin liên hệ)</summary><p className="mt-2 whitespace-pre-wrap text-slate-700">{c.cv_text}</p></details>
@@ -209,14 +218,15 @@ function CandidatePage() {
       {c.is_lead && (
         <div className="card space-y-3">
           <h2 className="font-semibold">Quyết định của hội đồng tuyển dụng</h2>
-          {!hasClosed ? (
+          {!hasClosed && !screeningOnly ? (
             <p className="text-sm text-slate-500">Cần đóng ít nhất một vòng phỏng vấn trước khi quyết định.</p>
           ) : (
             <div className="space-y-3">
+              {screeningOnly && <p className="text-sm text-slate-500">Ở bước sàng lọc hồ sơ chỉ có thể từ chối; muốn tuyển cần qua ít nhất một vòng phỏng vấn.</p>}
               <div className="flex flex-wrap gap-2">
-                {Object.entries(DECISION).map(([k, v]) => (
+                {Object.entries(DECISION).filter(([k]) => !screeningOnly || k === "reject").map(([k, v]) => (
                   <label key={k} className={`cursor-pointer rounded-lg border px-3 py-1 text-sm ${decision.decision === k ? "border-indigo-500 bg-indigo-50" : "border-slate-300"}`}>
-                    <input type="radio" className="mr-1" checked={decision.decision === k} onChange={() => setDecision({ ...decision, decision: k })} />{v}
+                    <input type="radio" className="mr-1" checked={screeningOnly || decision.decision === k} onChange={() => setDecision({ ...decision, decision: k })} />{v}
                   </label>
                 ))}
               </div>
@@ -224,7 +234,7 @@ function CandidatePage() {
               <input className="input" placeholder="Thành viên hội đồng (cách nhau bằng dấu phẩy)" value={decision.committee} onChange={(e) => setDecision({ ...decision, committee: e.target.value })} />
               <button className="btn" disabled={!!busy || decision.rationale.trim().length < 10}
                 onClick={() => act("decide", () => post(`/hiring/candidates/${c.id}/decision`, {
-                  decision: decision.decision, rationale: decision.rationale,
+                  decision: screeningOnly ? "reject" : decision.decision, rationale: decision.rationale,
                   committee: decision.committee.split(",").map((x) => x.trim()).filter(Boolean),
                 }))}>
                 Ghi nhận quyết định

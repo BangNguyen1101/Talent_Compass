@@ -95,7 +95,7 @@ function NewJob() {
 
 export default function Page() {
   return (
-    <RequireAuth roles={["student", "advisor", "hr", "manager", "hiring_lead"]}>
+    <RequireAuth roles={["hr"]}>
       <NewJob />
     </RequireAuth>
   );

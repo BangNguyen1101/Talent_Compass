@@ -293,8 +293,16 @@ class AuditLog(TimestampMixin, Base):
 # ---------------------------------------------------------------- BO-17: phỏng vấn ứng viên thật
 
 class Candidate(TimestampMixin, Base):
+    """Ứng viên của một JD: do HR/trưởng nhóm nhập (source=manual) hoặc tự ứng tuyển trên sàn (source=applied)."""
+
     __tablename__ = "candidates"
+    __table_args__ = (UniqueConstraint("jd_id", "applicant_id"),)
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    source: Mapped[str] = mapped_column(String(20), default="manual")
+    applicant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    cv_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cvs.id", ondelete="SET NULL"), nullable=True)
+    cover_note: Mapped[str] = mapped_column(Text, default="")
+    match_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     jd_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("job_descriptions.id"))
     full_name: Mapped[str] = mapped_column(String(200))

@@ -74,6 +74,37 @@ export interface Job extends JobInput {
   question_bank: QuestionBankItem[];
   approvals: { level: number; decision: string; comment: string; by: string; at: string }[];
   can_edit: boolean;
+  company: string | null;
+  my_application: string | null;
+}
+
+export interface BoardItem {
+  id: string;
+  title: string;
+  level: string;
+  department: string;
+  job_family: string;
+  headcount: number;
+  company: string;
+  company_id: string;
+  created_at: string;
+  competencies: string[];
+  summary: string;
+  applied: boolean;
+  match: { score: number; matched: string[]; missing: string[] } | null;
+}
+
+export interface Application {
+  id: string;
+  jd_id: string;
+  title: string;
+  level: string;
+  company: string;
+  stage: string;
+  status: string;
+  match_score: number | null;
+  applied_at: string;
+  can_withdraw: boolean;
 }
 
 export interface JobChecks {

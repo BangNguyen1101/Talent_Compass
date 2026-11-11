@@ -1,7 +1,7 @@
 import type { JobStatus, Role } from "./types";
 
 export const ROLE_LABEL: Record<Role, string> = {
-  student: "Sinh viên",
+  student: "Sinh viên / Ứng viên",
   advisor: "Cố vấn hướng nghiệp",
   hr: "HR",
   manager: "Quản lý phê duyệt",
@@ -17,26 +17,27 @@ export const SCHOOL_ROLES: Role[] = ["advisor", "student"];
 type NavItem = { href: string; label: string };
 
 export function navFor(role: Role): NavItem[] {
-  const jobs = { href: "/jobs", label: "JD & năng lực" };
+  const board = { href: "/jobs", label: "Việc làm" };
+  const manage = { href: "/company-jobs", label: "JD công ty" };
   const settings = { href: "/settings", label: "Cài đặt" };
   switch (role) {
     case "student":
-      return [jobs, { href: "/cv", label: "Chấm CV" }, { href: "/interviews", label: "Phỏng vấn thử" },
-        { href: "/progress", label: "Tiến bộ" }, settings];
+      return [board, { href: "/applications", label: "Đơn ứng tuyển" }, { href: "/cv", label: "Chấm CV" },
+        { href: "/interviews", label: "Phỏng vấn thử" }, { href: "/progress", label: "Tiến bộ" }, settings];
     case "advisor":
-      return [{ href: "/advisor", label: "Bảng cố vấn" }, jobs, settings];
+      return [{ href: "/advisor", label: "Bảng cố vấn" }, board, settings];
     case "hr":
-      return [jobs, { href: "/hiring", label: "Tuyển dụng" }, { href: "/surveys", label: "Khảo sát" }, settings];
+      return [manage, { href: "/hiring", label: "Tuyển dụng" }, { href: "/surveys", label: "Khảo sát" }, board, settings];
     case "manager":
-      return [{ href: "/approvals", label: "Chờ duyệt" }, jobs, { href: "/surveys", label: "Báo cáo khảo sát" }, settings];
+      return [{ href: "/approvals", label: "Chờ duyệt" }, manage, { href: "/surveys", label: "Báo cáo khảo sát" }, board, settings];
     case "hiring_lead":
-      return [{ href: "/hiring", label: "Tuyển dụng" }, jobs, { href: "/surveys", label: "Khảo sát" }, settings];
+      return [{ href: "/hiring", label: "Tuyển dụng" }, manage, { href: "/surveys", label: "Khảo sát" }, board, settings];
     case "interviewer":
-      return [{ href: "/hiring", label: "Lịch phỏng vấn" }, { href: "/surveys", label: "Khảo sát" }, settings];
+      return [{ href: "/hiring", label: "Lịch phỏng vấn" }, { href: "/surveys", label: "Khảo sát" }, board, settings];
     case "employee":
-      return [{ href: "/surveys", label: "Khảo sát" }, settings];
+      return [{ href: "/surveys", label: "Khảo sát" }, board, settings];
     default:
-      return [jobs, settings];
+      return [board, settings];
   }
 }
 
@@ -60,6 +61,8 @@ export const ROUND_TYPES: Record<string, string> = {
 };
 
 export const STAGE: Record<string, { label: string; cls: string }> = {
+  applied: { label: "Mới ứng tuyển", cls: "bg-sky-100 text-sky-800" },
+  withdrawn: { label: "Đã rút đơn", cls: "bg-slate-100 text-slate-500" },
   interviewing: { label: "Đang phỏng vấn", cls: "bg-indigo-100 text-indigo-800" },
   review: { label: "Chờ hội đồng", cls: "bg-amber-100 text-amber-800" },
   hired: { label: "Đã tuyển", cls: "bg-emerald-100 text-emerald-800" },

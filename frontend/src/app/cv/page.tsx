@@ -222,8 +222,8 @@ function CVPage() {
         <div>
           <label className="label">2. Vị trí ứng tuyển (JD)</label>
           <select className="input" value={jdId} onChange={(e) => setJdId(e.target.value)}>
-            {jobs.length === 0 && <option value="">Chưa có JD, hãy tạo ở mục JD & năng lực</option>}
-            {jobs.map((j) => <option key={j.id} value={j.id}>{j.title} ({j.level})</option>)}
+            {jobs.length === 0 && <option value="">Chưa có việc làm nào được đăng</option>}
+            {jobs.map((j) => <option key={j.id} value={j.id}>{j.title} ({j.level}){j.company ? ` · ${j.company}` : ""}</option>)}
           </select>
         </div>
         <div className="sm:col-span-2">

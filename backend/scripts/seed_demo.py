@@ -87,16 +87,33 @@ def main() -> None:
         ok(c.post(f"/surveys/{sv['id']}/respond", json={"answers": answers}, headers=e["h"]))
 
     # ---------------- Trường
+    # ---------------- Công ty thứ 2 (không yêu cầu duyệt) để sàn việc làm có JD của nhiều công ty
+    hr2 = reg("hr", "Nam (HR công ty B)", org=f"Công ty Fintech B {SUFFIX}", dept="Nhân sự", tag="b")
+    ok(c.patch("/org", json={"jd_approval_levels": 0}, headers=hr2["h"]))
+    for title, level, family, ctx in [("Thực tập sinh Python", "intern", "Backend", "Python, SQL, Git"),
+                                      ("Frontend Developer", "middle", "Frontend", "React, TypeScript, Next.js"),
+                                      ("Chuyên viên phân tích dữ liệu", "senior", "Data", "SQL, Power BI, Python")]:
+        d = ok(c.post("/jobs/generate", json={"title": title, "level": level, "department": "Công nghệ",
+                                              "job_family": family, "context": ctx}, headers=hr2["h"]))
+        j = ok(c.post("/jobs", json={**d, "department": "Công nghệ", "job_family": family,
+                                     "content": d["content"] + f"\n\n## Công nghệ\n{ctx}"}, headers=hr2["h"]))
+        ok(c.post(f"/jobs/{j['id']}/submit", headers=hr2["h"]))
+
+    # ---------------- Trường + sinh viên (có CV, đã ứng tuyển 1 vị trí)
     adv = reg("advisor", "Cô Thảo (Cố vấn)", org=f"Trường Demo {SUFFIX}")
     scode = ok(c.get("/org", headers=adv["h"]))["join_code"]
-    sj = ok(c.post("/jobs/generate", json={"title": "Thực tập sinh Python", "level": "intern"}, headers=adv["h"]))
-    sjob = ok(c.post("/jobs", json=sj, headers=adv["h"]))
-    ok(c.post(f"/jobs/{sjob['id']}/submit", headers=adv["h"]))
     st = reg("student", "Bình (Sinh viên)", code=scode)
+    cv_text = ("Kinh nghiệm: Thực tập Python tại Công ty A (3 tháng), viết API bằng FastAPI.\n"
+               "Dự án: Website quản lý thư viện (React, PostgreSQL).\nHọc vấn: Đại học X, CNTT\n"
+               "Kỹ năng: Python, SQL, Git, React\nEmail: binh@example.com")
+    cv = ok(c.post("/cvs", files={"file": ("cv-binh.txt", cv_text.encode(), "text/plain")}, headers=st["h"]))
+    ok(c.post(f"/jobs/{job['id']}/apply", json={"cv_id": cv["id"], "cover_note": "Em mong được thử sức."},
+              headers=st["h"]))
 
     print("\nĐã tạo dữ liệu demo. Mật khẩu chung:", DEMO_PASSWORD)
-    for label, acc in [("HR", hr), ("Quản lý duyệt", mgr), ("Trưởng nhóm TD", lead), ("Người phỏng vấn 1", iv1),
-                       ("Người phỏng vấn 2", iv2), ("Cố vấn", adv), ("Sinh viên", st)]:
+    for label, acc in [("HR công ty A", hr), ("Quản lý duyệt", mgr), ("Trưởng nhóm TD", lead),
+                       ("Người phỏng vấn 1", iv1), ("Người phỏng vấn 2", iv2), ("HR công ty B", hr2),
+                       ("Cố vấn", adv), ("Sinh viên", st)]:
         print(f"  {label:20s} {acc['email']}")
     print(f"  Mã công ty: {code} · Mã trường: {scode}")
 

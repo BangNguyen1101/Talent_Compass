@@ -13,9 +13,20 @@ Nền tảng nhân sự theo khung năng lực, dùng AI. Ghép 4 đề tài AI2
 | Công ty | Người phỏng vấn | Scorecard độc lập |
 | Công ty | Nhân viên | Trả lời khảo sát ẩn danh |
 | Trường | Cố vấn hướng nghiệp | KPI, theo dõi tiến bộ, nhận xét báo cáo sinh viên |
-| Trường / tự do | Sinh viên | Chấm CV, phỏng vấn thử |
+| Trường / tự do | Sinh viên / ứng viên | Tìm việc, ứng tuyển, chấm CV, phỏng vấn thử |
 
 HR / cố vấn tạo tổ chức và nhận **mã mời**; thành viên khác đăng ký bằng mã đó.
+
+## Sàn việc làm
+
+- **Chỉ HR của công ty tạo JD.** JD qua duyệt (hoặc công ty chọn "không cần duyệt") được ban hành lên sàn.
+- **Mọi vai trò xem được sàn**: JD đã ban hành của tất cả công ty; tìm theo từ khóa; lọc theo công ty, cấp độ,
+  nhóm vị trí, phòng ban, năng lực; ứng viên chọn CV để xem **mức khớp** từng JD và sắp xếp theo độ phù hợp
+  (luật ATS, không tốn lượt AI).
+- **Ứng tuyển**: ứng viên nộp CV (đã che thông tin liên hệ) → đơn vào thẳng quy trình tuyển dụng (BO-17) của
+  công ty đó với trạng thái "Mới ứng tuyển"; công ty có thể từ chối hồ sơ hoặc mời phỏng vấn; ứng viên theo dõi
+  trạng thái và rút đơn khi chưa được xử lý.
+- Ứng viên **không** thấy thông tin nội bộ của JD (lịch sử duyệt, cảnh báo thiên vị, ngân hàng câu hỏi phỏng vấn).
 
 ## Đối chiếu yêu cầu đề tài
 
