@@ -5,10 +5,11 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, post, put } from "@/lib/api";
 import { REC_LABEL } from "@/lib/roles";
-import type { BiasIssue, Competency } from "@/lib/types";
+import type { BiasIssue, Competency, ScoringGuide } from "@/lib/types";
+import { QuestionDetail, QuestionTypeTag } from "@/components/QuestionDetail";
 import { BiasList, ErrorBox, Notice, RequireAuth } from "@/components/ui";
 
-interface Question { question: string; competency: string; what_good_looks_like: string; red_flags?: string[] }
+interface Question { question: string; competency: string; what_good_looks_like: string; red_flags?: string[]; type?: string; follow_ups?: string[]; scoring_guide?: ScoringGuide | null }
 interface ScoreItem { competency: string; score: number | null; evidence: string }
 interface QNote { index: number; asked: boolean; notes: string }
 interface RoundView {
@@ -143,10 +144,11 @@ function Scorecard() {
               <input type="checkbox" className="mt-1" disabled={locked} checked={notes[i]?.asked ?? false}
                 onChange={(e) => setNotes(notes.map((n) => (n.index === i ? { ...n, asked: e.target.checked } : n)))} title="Đã hỏi" />
               <div>
-                <p className="text-xs font-semibold uppercase text-indigo-700">{q.competency}</p>
+                <p className="text-xs font-semibold uppercase text-indigo-700">{q.competency}<QuestionTypeTag type={q.type} /></p>
                 <p className="font-medium">{q.question}</p>
                 <p className="text-xs text-emerald-700">Tốt: {q.what_good_looks_like}</p>
                 {q.red_flags?.length ? <p className="text-xs text-red-600">Lưu ý: {q.red_flags.join("; ")}</p> : null}
+                <QuestionDetail followUps={q.follow_ups} guide={q.scoring_guide} />
               </div>
             </div>
             <textarea className="input min-h-16" disabled={locked} placeholder="Ghi chú câu trả lời của ứng viên" value={notes[i]?.notes ?? ""}

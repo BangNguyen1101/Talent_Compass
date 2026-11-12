@@ -77,3 +77,11 @@ export const REC_LABEL: Record<string, string> = {
   strong_no_hire: "Chắc chắn không",
   more_info: "Cần thêm thông tin",
 };
+
+export const QUESTION_TYPE: Record<string, string> = {
+  technical: "Chuyên môn",
+  situational: "Tình huống",
+  behavioral: "Hành vi (STAR)",
+  case: "Bài toán nghiệp vụ",
+  motivation: "Động lực",
+};

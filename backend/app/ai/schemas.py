@@ -19,10 +19,9 @@ class CompetencyDraft(BaseModel):
 
 class JDDraft(BaseModel):
     title: str
-    summary: str
-    responsibilities: list[str]
-    requirements: list[str]
-    nice_to_have: list[str]
+    content_markdown: str = Field(
+        description="Toàn bộ JD dạng Markdown, cấu trúc mục tự chọn cho phù hợp vị trí (tiêu đề ##, gạch đầu dòng)"
+    )
     competencies: list[CompetencyDraft]
 
 
@@ -64,10 +63,22 @@ class CVAssessmentResult(BaseModel):
     suggestions: list[CVSuggestion]
 
 
+QUESTION_TYPES = "technical | situational | behavioral | case | motivation"
+
+
+class ScoringGuide(BaseModel):
+    weak: str = Field(description="Câu trả lời mức 1-2 trông như thế nào (cụ thể cho câu hỏi này)")
+    solid: str = Field(description="Câu trả lời mức 3 trông như thế nào")
+    strong: str = Field(description="Câu trả lời mức 4-5 trông như thế nào")
+
+
 class InterviewQuestion(BaseModel):
     question: str
     competency: str
+    type: str = Field(description=QUESTION_TYPES)
     what_good_looks_like: str
+    follow_ups: list[str] = Field(description="1-2 câu hỏi đào sâu người phỏng vấn có thể hỏi tiếp")
+    scoring_guide: ScoringGuide
 
 
 class InterviewQuestionSet(BaseModel):
@@ -93,8 +104,11 @@ class NeutralRewrite(BaseModel):
 class QuestionBankItem(BaseModel):
     question: str
     competency: str
-    good_signals: list[str] = Field(description="Dấu hiệu câu trả lời tốt")
-    red_flags: list[str] = Field(description="Dấu hiệu đáng lo ngại")
+    type: str = Field(description=QUESTION_TYPES)
+    good_signals: list[str] = Field(description="Dấu hiệu câu trả lời tốt, cụ thể theo câu hỏi")
+    red_flags: list[str] = Field(description="Dấu hiệu đáng lo ngại, cụ thể theo câu hỏi")
+    follow_ups: list[str] = Field(description="1-2 câu hỏi đào sâu")
+    scoring_guide: ScoringGuide
 
 
 class QuestionBank(BaseModel):

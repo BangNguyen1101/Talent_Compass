@@ -57,11 +57,20 @@ export interface BiasIssue {
   suggestion: string;
 }
 
+export interface ScoringGuide {
+  weak: string;
+  solid: string;
+  strong: string;
+}
+
 export interface QuestionBankItem {
   question: string;
   competency: string;
+  type?: string;
   good_signals: string[];
   red_flags: string[];
+  follow_ups?: string[];
+  scoring_guide?: ScoringGuide | null;
 }
 
 export interface Job extends JobInput {
@@ -168,6 +177,9 @@ export interface InterviewTurn {
   better_answer_hint: string | null;
   follow_up_question?: string;
   parent: number | null;
+  type?: string;
+  follow_ups?: string[];
+  scoring_guide?: ScoringGuide | null;
 }
 
 export interface Interview {

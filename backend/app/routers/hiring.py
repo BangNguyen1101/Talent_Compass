@@ -177,9 +177,10 @@ def create_round(cid: uuid.UUID, body: RoundIn, user: User = Depends(require_rol
     focus_l = {f.lower() for f in focus}
     bank = [q for q in (jd.question_bank or []) if q["competency"].lower() in focus_l]
     if bank:  # dùng ngân hàng câu hỏi của JD: không tốn AI, nhất quán giữa các ứng viên
-        questions = [{"question": q["question"], "competency": q["competency"],
+        questions = [{"question": q["question"], "competency": q["competency"], "type": q.get("type", ""),
                       "what_good_looks_like": "; ".join(q.get("good_signals", [])),
-                      "red_flags": q.get("red_flags", [])} for q in bank[: body.question_count]]
+                      "red_flags": q.get("red_flags", []), "follow_ups": q.get("follow_ups", []),
+                      "scoring_guide": q.get("scoring_guide")} for q in bank[: body.question_count]]
     else:
         probe = (c.profile_memory[-1].get("probe_next_round", []) if c.profile_memory else [])
         try:

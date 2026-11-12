@@ -75,11 +75,23 @@ HR / cố vấn tạo tổ chức và nhận **mã mời**; thành viên khác �
 ```
 Next.js (Vercel) ──HTTPS/JWT──► FastAPI (Render, Docker) ──► PostgreSQL + pgvector (Render)
                                        │
-                                       └──► Claude API (Haiku 5.5: việc nhanh · Sonnet 5.5: chấm điểm)
+                                       └──► Claude API hoặc Google Gemini (model nhanh: việc thường · model mạnh: chấm điểm)
 ```
 
+### Chọn nhà cung cấp AI
+
+| Biến môi trường | Ý nghĩa |
+|---|---|
+| `GEMINI_API_KEY` | Key Google Gemini (lấy tại aistudio.google.com → Get API key) |
+| `ANTHROPIC_API_KEY` | Key Claude (console.anthropic.com) |
+| `LLM_PROVIDER` | `auto` (mặc định: có key nào dùng key đó, có cả hai thì ưu tiên Claude), `gemini` hoặc `anthropic` |
+| `GEMINI_FAST_MODEL` / `GEMINI_SMART_MODEL` | Mặc định `gemini-2.5-flash` / `gemini-2.5-pro`; kiểm tra tên model hiện hành trên AI Studio |
+| `LLM_FAST_MODEL` / `LLM_SMART_MODEL` | Model Claude, mặc định `claude-haiku-5-5` / `claude-sonnet-5-5` |
+
+Không có key nào → **chế độ dữ liệu mẫu** (nội dung gắn nhãn [MẪU], web hiện thông báo màu vàng).
+`/health` cho biết đang dùng gì: `"llm": "gemini" | "claude" | "mock"`.
+
 - Điểm số, ATS, tổng hợp scorecard, thống kê khảo sát, kiểm tra thiên vị/định biên/nhất quán: **tính bằng code** (`backend/app/core/`), giải thích và kiểm thử được. AI chỉ diễn giải và đề xuất.
-- Không có `ANTHROPIC_API_KEY` → backend chạy **chế độ dữ liệu mẫu** (kết quả gắn nhãn [MẪU]).
 
 ## Chạy trên máy
 
@@ -116,7 +128,7 @@ Test backend: `cd backend && pytest -q` (cần database đang chạy).
 
 ## Deploy
 
-1. **Render** (backend + database): Dashboard → **New → Blueprint** → chọn repo; Render đọc `render.yaml`. Điền `ANTHROPIC_API_KEY` trong Environment của `talentcompass-api` (để trống = chế độ mẫu).
+1. **Render** (backend + database): Dashboard → **New → Blueprint** → chọn repo; Render đọc `render.yaml`. Điền `GEMINI_API_KEY` (hoặc `ANTHROPIC_API_KEY`) trong Environment của `talentcompass-api` (để trống = chế độ mẫu).
 2. **Vercel** (frontend): Root Directory `frontend`, biến `NEXT_PUBLIC_API_URL` = link Render.
 3. Mỗi lần `git push` lên `main`: GitHub Actions chạy test; Vercel và Render tự deploy. Migration chạy tự động khi backend khởi động.
 

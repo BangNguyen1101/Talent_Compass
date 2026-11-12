@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { JOB_STATUS, ROUND_TYPES } from "@/lib/roles";
 import type { CV, Interview, Job, JobChecks, JobInput } from "@/lib/types";
 import { JobEditor } from "@/components/JobEditor";
+import { QuestionDetail, QuestionTypeTag } from "@/components/QuestionDetail";
 import { Badge, BiasList, Csat, ErrorBox, Notice, RequireAuth } from "@/components/ui";
 
 const ORG_STAFF = ["hr", "manager", "hiring_lead", "interviewer"];
@@ -262,10 +263,11 @@ function JobDetail() {
               <ol className="space-y-3 text-sm">
                 {job.question_bank.map((q, i) => (
                   <li key={i} className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-xs font-semibold uppercase text-indigo-700">{q.competency}</p>
+                    <p className="text-xs font-semibold uppercase text-indigo-700">{q.competency}<QuestionTypeTag type={q.type} /></p>
                     <p className="font-medium">{q.question}</p>
                     <p className="mt-1 text-emerald-700">✓ {q.good_signals.join("; ")}</p>
                     <p className="text-red-600">✗ {q.red_flags.join("; ")}</p>
+                    <QuestionDetail followUps={q.follow_ups} guide={q.scoring_guide} />
                   </li>
                 ))}
               </ol>

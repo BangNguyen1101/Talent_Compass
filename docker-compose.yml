@@ -22,7 +22,9 @@ services:
       DATABASE_URL: postgresql://talent:talent@db:5432/talentcompass
       JWT_SECRET: local-dev-secret
       FRONTEND_URL: http://localhost:3000
+      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:

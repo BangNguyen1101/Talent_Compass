@@ -26,8 +26,16 @@ services:
         generateValue: true
       - key: FRONTEND_URL
         sync: false      # điền link Vercel sau khi deploy frontend
+      - key: LLM_PROVIDER
+        sync: false      # để trống = tự chọn theo key có sẵn; hoặc anthropic / gemini
       - key: ANTHROPIC_API_KEY
         sync: false      # điền trên dashboard, không ghi vào code
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_FAST_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_SMART_MODEL
+        value: gemini-2.5-pro
       - key: LLM_FAST_MODEL
         value: claude-haiku-5-5
       - key: LLM_SMART_MODEL

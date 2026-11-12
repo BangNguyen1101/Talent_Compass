@@ -18,6 +18,10 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-sonnet-5-5": (2.00, 10.00),
     "claude-sonnet-5": (2.00, 10.00),
     "claude-opus-5-5": (4.00, 20.00),
+    # Giá Gemini tham khảo (gói trả phí, prompt ≤200K token); gói miễn phí của Google không tính tiền
+    "gemini-2.5-flash-lite": (0.10, 0.40),
+    "gemini-2.5-flash": (0.30, 2.50),
+    "gemini-2.5-pro": (1.25, 10.00),
 }
 
 
@@ -26,7 +30,9 @@ class QuotaExceeded(RuntimeError):
 
 
 def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    pin, pout = PRICES.get(model, (2.00, 10.00))
+    # Gemini có thể trả tên model kèm hậu tố phiên bản: khớp theo tiền tố dài nhất
+    key = model if model in PRICES else max((k for k in PRICES if model.startswith(k)), key=len, default=None)
+    pin, pout = PRICES.get(key, (2.00, 10.00)) if key else (2.00, 10.00)
     return round(input_tokens / 1e6 * pin + output_tokens / 1e6 * pout, 6)
 
 

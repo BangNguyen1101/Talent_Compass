@@ -4,7 +4,7 @@ Mỗi hàm có dữ liệu mẫu (mock) để chạy thử khi chưa có API key
 import json
 import re
 
-from app.ai import prompts
+from app.ai import mock_content, prompts
 from app.ai.llm import generate
 from app.ai.schemas import (
     AnswerFeedback,
@@ -55,20 +55,14 @@ def draft_jd(title: str, level: str, context: str, *, brand_voice: str = "",
     prompt = "\n\n".join(parts)
 
     def mock() -> JDDraft:
-        base = [("Giải quyết vấn đề", "soft"), ("Giao tiếp", "soft"), ("Làm việc nhóm", "soft")]
-        tech = [(d, "technical") for d in (dictionary or [])[:3]] or [("Chuyên môn cốt lõi", "technical"),
-                                                                       ("Công cụ & quy trình", "technical")]
-        req = {"intern": 1, "fresher": 2, "junior": 2, "middle": 3, "senior": 4, "lead": 4}.get(level, 3)
+        req = mock_content.LEVEL_REQ.get(level, 3)
+        comps = mock_content.competencies(title, level, context, dictionary or [])
         return JDDraft(
             title=title,
-            summary=f"[MẪU] {title} cấp {level}. {('Phong cách: ' + brand_voice[:80]) if brand_voice else ''}",
-            responsibilities=["Thực hiện các nhiệm vụ chuyên môn của vị trí", "Phối hợp với các nhóm liên quan",
-                              "Báo cáo tiến độ định kỳ"],
-            requirements=["Có kiến thức nền tảng liên quan vị trí", "Có dự án/thực tập minh chứng năng lực"],
-            nice_to_have=["Có kinh nghiệm làm việc theo Agile"],
-            competencies=[CompetencyDraft(name=n, category=c, description=f"Năng lực {n} cho vị trí {title}",
+            content_markdown=mock_content.jd_markdown(title, level, context, brand_voice),
+            competencies=[CompetencyDraft(name=n, category=c, description=f"[MẪU] Năng lực {n} cho vị trí {title}",
                                           required_level=req, weight=1.5 if c == "technical" else 1.0,
-                                          rubric=_rubric(n)) for n, c in tech + base],
+                                          rubric=_rubric(n)) for n, c in comps],
         )
 
     return generate(feature="jd.draft", tier="fast", system=prompts.JD_SYSTEM, prompt=prompt,
@@ -93,17 +87,8 @@ def question_bank(jd_text: str, level: str, competencies: list[dict]) -> Questio
     prompt = f"Cấp độ: {level}\n" + _xml("jd", jd_text) + "\n" + _xml("khung_nang_luc", _json(competencies))
 
     def mock() -> QuestionBank:
-        items = []
-        for c in competencies:
-            items += [
-                QuestionBankItem(question=f"[MẪU] Kể về một lần bạn thể hiện {c['name']} rõ nhất.",
-                                 competency=c["name"], good_signals=["Có tình huống cụ thể", "Nêu kết quả đo được"],
-                                 red_flags=["Trả lời chung chung", "Đổ lỗi cho người khác"]),
-                QuestionBankItem(question=f"[MẪU] Nếu gặp tình huống khó liên quan {c['name']}, bạn xử lý thế nào?",
-                                 competency=c["name"], good_signals=["Có các bước rõ ràng"],
-                                 red_flags=["Không cân nhắc rủi ro"]),
-            ]
-        return QuestionBank(items=items)
+        items = mock_content.question_items(jd_text, competencies, len(competencies) * 2, "mixed")
+        return QuestionBank(items=[QuestionBankItem(**i) for i in items])
 
     return generate(feature="jd.question_bank", tier="fast", system=prompts.QUESTION_BANK_SYSTEM,
                     prompt=prompt, output=QuestionBank, mock=mock)
@@ -177,15 +162,8 @@ def generate_questions(jd_text: str, competencies: list[dict], count: int, round
     parts.append(f"Tạo {count} câu hỏi, ưu tiên năng lực có trọng số cao.")
 
     def mock() -> InterviewQuestionSet:
-        ordered = sorted(competencies, key=lambda c: -c["weight"])
-        qs = []
-        for i in range(count):
-            c = ordered[i % len(ordered)]
-            prefix = {"technical": "Hãy giải thích cách bạn áp dụng", "screening": "Vì sao bạn quan tâm tới",
-                      "final": "Bạn muốn phát triển"}.get(round_type, "Kể về một lần bạn thể hiện")
-            qs.append(InterviewQuestion(question=f"[MẪU] {prefix} {c['name']}?", competency=c["name"],
-                                        what_good_looks_like="Có bối cảnh, hành động cụ thể, kết quả đo được"))
-        return InterviewQuestionSet(questions=qs)
+        items = mock_content.question_items(jd_text, competencies, count, round_type)
+        return InterviewQuestionSet(questions=[InterviewQuestion(**i) for i in items])
 
     return generate(feature="interview.questions", tier="fast", system=prompts.QUESTION_SYSTEM,
                     prompt="\n\n".join(parts), output=InterviewQuestionSet, mock=mock)

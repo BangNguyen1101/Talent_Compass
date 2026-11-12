@@ -31,4 +31,5 @@ for r in (auth.router, orgs.router, applications.router, jobs.router, cvs.router
 
 @app.get("/health", tags=["system"])
 def health():
-    return {"status": "ok", "llm": "mock" if settings.use_mock_llm else "claude"}
+    llm = "mock" if settings.use_mock_llm else ("gemini" if settings.provider == "gemini" else "claude")
+    return {"status": "ok", "llm": llm}

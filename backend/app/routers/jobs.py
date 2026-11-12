@@ -56,14 +56,6 @@ ACTIVE_STATUSES = (JobStatus.pending_approval, JobStatus.published)
 
 # ---------------------------------------------------------------- helpers
 
-def jd_markdown(d) -> str:
-    def bullets(items: list[str]) -> str:
-        return "\n".join(f"- {i}" for i in items) or "- (chưa có)"
-
-    return (f"## Tổng quan\n{d.summary}\n\n## Trách nhiệm\n{bullets(d.responsibilities)}\n\n"
-            f"## Yêu cầu\n{bullets(d.requirements)}\n\n## Ưu tiên\n{bullets(d.nice_to_have)}")
-
-
 def comps_out(jd: JobDescription) -> list[JDCompetencyIO]:
     return [JDCompetencyIO(name=link.competency.name, category=link.competency.category,
                            description=link.competency.description, required_level=link.required_level,
@@ -223,7 +215,7 @@ def generate_jd(body: JDGenerateIn, user: User = Depends(require_hr), db: Sessio
                     detail={"model": model_name("fast"), "references": len(references)}))
     db.commit()
     return JobIn(title=draft.title, level=body.level, department=body.department, job_family=body.job_family,
-                 content=jd_markdown(draft),
+                 content=draft.content_markdown,
                  competencies=[JDCompetencyIO(**c.model_dump()) for c in draft.competencies])
 
 

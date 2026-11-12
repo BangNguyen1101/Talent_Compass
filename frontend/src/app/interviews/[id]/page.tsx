@@ -6,6 +6,7 @@ import { api, post } from "@/lib/api";
 import { ROUND_TYPES } from "@/lib/roles";
 import type { Interview } from "@/lib/types";
 import { AiNotice, Csat, ErrorBox, RequireAuth, ScoreBar } from "@/components/ui";
+import { QuestionDetail, QuestionTypeTag } from "@/components/QuestionDetail";
 
 function InterviewRoom() {
   const { id } = useParams<{ id: string }>();
@@ -105,6 +106,7 @@ function InterviewRoom() {
         <div>
           <p className="text-xs font-semibold uppercase text-indigo-700">
             {turn.parent !== null ? "Câu hỏi đào sâu" : `Câu ${mainNo(current)}`} · {turn.competency}
+            <QuestionTypeTag type={turn.type} />
           </p>
           <p className="mt-1 text-lg font-medium">{turn.question}</p>
         </div>
@@ -124,6 +126,7 @@ function InterviewRoom() {
             <details className="text-sm text-slate-600">
               <summary className="cursor-pointer">Câu trả lời tốt cần có gì?</summary>
               <p className="mt-1">{turn.what_good_looks_like}</p>
+              <QuestionDetail guide={turn.scoring_guide} />
             </details>
           </div>
         ) : done ? (

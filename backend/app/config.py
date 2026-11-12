@@ -11,8 +11,13 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24
     frontend_url: str = "http://localhost:3000"
 
-    # AI
+    # AI: "auto" (mặc định: có key nào dùng key đó, ưu tiên Claude), "anthropic" hoặc "gemini"
+    llm_provider: str = "auto"
     anthropic_api_key: str | None = None
+    gemini_api_key: str | None = None
+    # Tên model Gemini thay đổi theo thời gian: kiểm tra tên hiện hành trên Google AI Studio
+    gemini_fast_model: str = "gemini-2.5-flash"
+    gemini_smart_model: str = "gemini-2.5-pro"
     # Model rẻ, nhanh: trích xuất CV, soạn JD, sinh câu hỏi
     llm_fast_model: str = "claude-haiku-5-5"
     # Model mạnh: chấm điểm CV, đánh giá câu trả lời phỏng vấn
@@ -35,8 +40,22 @@ class Settings(BaseSettings):
         return url
 
     @property
+    def provider(self) -> str:
+        """Nhà cung cấp thực tế: "anthropic" hoặc "gemini"."""
+        choice = (self.llm_provider or "auto").strip().lower()
+        if choice in ("anthropic", "gemini"):
+            return choice
+        if not self.anthropic_api_key and self.gemini_api_key:
+            return "gemini"
+        return "anthropic"
+
+    @property
+    def active_api_key(self) -> str | None:
+        return self.gemini_api_key if self.provider == "gemini" else self.anthropic_api_key
+
+    @property
     def use_mock_llm(self) -> bool:
-        return self.llm_mock or not self.anthropic_api_key
+        return self.llm_mock or not self.active_api_key
 
 
 @lru_cache
